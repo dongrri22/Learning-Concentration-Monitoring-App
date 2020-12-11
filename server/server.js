@@ -23,15 +23,17 @@ const database = require(__dirname+'/db/database.js');
 var querystring = require('querystring');
 var app = express();
 var bodyParser = require('body-parser');
+var axios = require('axios');
 
-app.use(bodyParser.urlencoded({extended : false}));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({extended : true}));
 app.use('/db', express.static(path.join(__dirname, 'db')));
 app.use('/style', express.static(path.join(__dirname, 'style')));
 app.use('/', express.static(__dirname));
 app.get('/', (req, res) => {
   
   //res.end(fs.readFileSync(path.join(__dirname, '/face-detection.html')));
-  res.sendFile(path.join(__dirname, '/face-detection.html'));
+  res.sendFile(path.join(__dirname, '../public/index.html'));
   
   // req.on('end', function(){
   //   var parsedQuery = querystring.parse(postdata);
@@ -41,11 +43,14 @@ app.get('/', (req, res) => {
   //   res.end();
   // })
 });
+
 app.post('/', (req, res)=>{
   let tag = req.body.tag;
   let userId = parseInt(req.body.userId, 16);
   let data = req.body.data;
   console.log("server : "+tag+" | "+userId+ " | "+data);
+  console.log(req.body);
+
   if(tag=='yawnTime'){
     //db에 저장하는 코드
     console.log("db에 저장.");
