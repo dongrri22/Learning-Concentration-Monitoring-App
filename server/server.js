@@ -54,6 +54,13 @@ app.post('/', async (req, res)=>{
         let yi = calculateYi(yawnTimes);
         res.send({tag:'YI_RESPONSE', yi : yi});
     }
+    else if(tag=="AI"){
+        let userId = parseInt(req.body.userId);
+        var connection = await database.connect();
+        let afkTime = await database.readAfkTime(connection, 1);
+        await database.disconnect(connection);
+        res.send({tag:'AI_RESPONSE', recentAfkTime : afkTime[0].time+""});
+    }
     else if(tag == "ALL_YAWNTIME"){
         let userId = parseInt(req.body.userId);
         var connection = await database.connect();
