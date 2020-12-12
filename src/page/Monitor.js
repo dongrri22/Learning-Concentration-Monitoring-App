@@ -17,6 +17,29 @@ var displaySize = {
 var faceDetection;
 var canvas;
 
+function checkYawnInterval(){
+    Axios({
+        method : 'post',
+        url : '/',
+        data : {
+            tag : "YI",
+            userId : 0
+        }
+    })
+    .then(function(res){
+        if(res.data.tag == "YI_RESPONSE"){
+            console.log(res.data.yi);
+            if(res.data.yi <= 120){
+                //화면에 경고창 띄우기
+                alert("you yawned too frequently!")
+            }
+        }
+    })
+    .catch(function(err){
+
+    });
+}
+
 function sendData(tag, data){
     Axios({
         method : 'post',
@@ -119,7 +142,12 @@ function startDetection(){
                     var yawnTime = yawnQueue.dequeue().time;
                     let tag = 'yawnTime';
                     sendData(tag, yawnTime+"");
-                    
+                    checkYawnInterval();
+                    ///////////////////////////////////////
+                    // db 읽어와서 경고 전송할지 판단       //
+                    // -> 최근 4회의 yawn 데이터를 읽어와 하품 간격으로 계산한 후 120초 이하일 경우 Rest Advising module 호출
+                    // -> Rest Advising module은 화면에 휴식 권고 메시지 팝업
+                    ////////////////////////////////////////
                 }
                 yawnQueue = new Queue(20);
                 yawnPeriodStarted = false;
