@@ -1,64 +1,122 @@
-import React, {Component, useEffect} from 'react';
+import React, {Component} from 'react';
 import './Monitor.css';
 import Axios from 'axios';
 import Webcam from 'webcam-easy';
-import $ from 'jquery';
 import * as faceapi from 'face-api.js';
-// const displayError=(err = '')=>{
-//     if(err!=''){
-//         document.getElementById("#errorMsg").html(err);
-//     }
-//     document.getElementById("#errorMsg").removeClass("d-none");
-// };
-// const toggleContrl = (id, show)=>{
-//     if(show){
-//       document.getElementById(id).prop('disabled', false);
-//       document.getElementById(id).parent().removeClass('disabled');
-//     }else{
-//       document.getElementById(id).prop('checked', false).change();
-//       document.getElementById(id).prop('disabled', true);
-//       document.getElementById(id).parent().addClass('disabled');
-//     }
-// }
 
 
-
-  
-//   class ErrorMsg extends Component {
-//       state = {
-//         className : "col-12 alert-danger d-none"
-//       }
-//       addActiveClass(e){
-          
-//       }
-//       render(){
-//           return(
-//                 <div id="errorMsg" className={this.state.className}>
-//                     Fail to start camera. Please allow permission to access camera.
-//                 </div>
-//           )
-//       }
-//   }
-// function displayError(err = ''){
-//     if(err!=''){
-//         document.getElementById("errorMsg").html(err);
-//     }
-//     document.getElementById("errorMsg").removeClass("d-none");
-// }
-/**/
-//
+/* -------------------------------------------------------*/
+/*                        js code                         */
+/*--------------------------------------------------------*/
 const modelPath = 'models';
 var webcam = {};
-var displaySize;
+var displaySize = {
+    height : {},
+    width : {}
+};
+var faceDetection;
+var canvas;
 
+function sendData(tag, data){
+    Axios({
+        method : 'post',
+        url : '/',
+        data : {
+            tag : tag,
+            data : data,
+            userId : '0x0000'
+        }
+    })
+    .then(function(res){
+        console.log('sent yawnTime to DB successfully.')
+    })
+    .catch(function(err){
+        console.error('sending yawnTime to DB failed.')
+    });
+}
+//20회 중 연속된 10회의 감지 안에서 하품이 7회 이상일 경우 => 10개 구간의 평균이 0.7 이상일 경우, true를 리턴.
+function isRealYawned(queue){
+    var dend = 0;
+    var dsor = 10;
+    for(var i=0; i<queue.store.length-15; i++){
+      dend=0;
+      for(var j=15+i-1; j>=i; j--){
+        if(queue.get(j).flag){
+          dend += 1
+        }
+      }
+      if(dend/dsor >= 0.9){
+        return true;
+      }
+    }
+    return false;
+}
+function startDetection(){
+    var yawnQueue = new Queue(20);
+    var periodStarted = false;
+    faceDetection = setInterval(async () => {
+        var webcamElement = document.getElementById('webcam');
+        displaySize = {
+            height : webcamElement.scrollHeight,
+            width : webcamElement.scrollWidth
+        }
+        const detections = await faceapi.detectAllFaces(
+            webcamElement, 
+            new faceapi.SsdMobilenetv1Options({
+                minConfidence : 0.5, maxResult: 1
+            })
+        ).withFaceLandmarks(false);
+        
+        /* landmark 위치가 어긋나는 문제 */
+        /* 해결. displaySize를 video height, width와 맞춰주고
+        canvas를 displaySize에 맞추고 landmark 그림 */
+        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+        
+        canvas.width = displaySize.width;
+        canvas.height = displaySize.height;
+        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+        try{
+            var mouth_ratio = (resizedDetections[0].landmarks._positions[66].y-resizedDetections[0].landmarks._positions[62].y)/(resizedDetections[0].landmarks._positions[54].x-resizedDetections[0].landmarks._positions[48].x);
+            var betweenLeftEndAndNose = (resizedDetections[0].landmarks._positions[30].x-resizedDetections[0].landmarks._positions[2].x);
+            var betweenRightEndAndNose = (resizedDetections[0].landmarks._positions[14].x-resizedDetections[0].landmarks._positions[30].x);
+
+            //주기가 시작된 상태면 (1)현재 시각을 큐에 집어넣고 (2)큐가 꽉 찼을 때 체크 후 (3) 큐를 비움.
+            let isDetected = ((betweenLeftEndAndNose*2<betweenRightEndAndNose)&&(mouth_ratio > 0.4)) //왼쪽 yawned
+            ||((betweenRightEndAndNose*2<betweenLeftEndAndNose)&&(mouth_ratio > 0.4)) //오른쪽 yawned
+            ||((betweenLeftEndAndNose*2>=betweenRightEndAndNose)&&(betweenRightEndAndNose*2>=betweenLeftEndAndNose)&&(mouth_ratio > 0.6));
+            //주기가 시작되지 않았을 때+감지됨 => 주기 시작하고 큐에 저장.
+            if(!periodStarted && isDetected){
+                yawnQueue.enqueue(new DetectedData(true, new Date()));
+                periodStarted = true;
+            }
+            //주기가 시작됨+감지됨+큐가 꽉 차지 않음. => 큐에 저장.
+            else if(periodStarted && yawnQueue.store.length < yawnQueue.size){
+                yawnQueue.enqueue(new DetectedData(isDetected, new Date()));
+            }
+            //큐가 꽉 참.
+            else if(yawnQueue.store.length >= yawnQueue.size){
+                if(isRealYawned(yawnQueue)){
+                    //최초 시각 전송.
+                    var yawnTime = yawnQueue.dequeue().time;
+                    let tag = 'yawnTime';
+                    sendData(tag, yawnTime+"");
+                    
+                }
+                yawnQueue = new Queue(20);
+                periodStarted = false;
+            }
+        } catch(e){
+
+        }
+    }, 200);
+}
 function createCanvas(){
     const webcamElement = document.getElementById('webcam');
-    if( document.getElementsByTagName("canvas").length == 0 )
-    {
-      var canvas = faceapi.createCanvasFromMedia(webcamElement)
-      document.getElementById('webcam-container').append(canvas)
-      faceapi.matchDimensions(canvas, displaySize)
-    }
+    canvas = faceapi.createCanvasFromMedia(webcamElement)
+    document.getElementById('webcam-container').append(canvas);
+    faceapi.matchDimensions(canvas, displaySize);
+    
   }
 function cameraStarted(){
     //detection-switch의 disabled를 false로
@@ -80,47 +138,51 @@ function cameraStopped(){
     document.getElementById('detection-switch').disabled = true;
     document.getElementById('detection-switch').checked= false;
     document.getElementById('detectingSwitchLabel').className = "form-switch disabled";
+    clearInterval(faceDetection);
 
     //errorMsg에 d-none 클래스 추가
     //cameraFlip에 d-none 클래스 추가
     document.getElementById("errorMsg").className = "col-12 alert-danger d-none";
     document.getElementById("cameraFlip").className = "btn d-none";
 }
+
+const displayError=(err = '')=>{
+    if(err!==''){
+        document.getElementById("errorMsg").html(err);
+    }
+    //errorMsg에서 d-none class를 제거.
+    document.getElementById("errorMsg").className = "col-12 alert-danger";
+};
+
+/* -------------------------------------------------------*/
+/*                 custom component                       */
+/*--------------------------------------------------------*/
 class WebcamSwitch extends Component{
     constructor(props){
         super(props);
-        this.state={
-            //webcam:{}
-        };
         this.onClick = this.onClick.bind(this);
     }
     onClick(event){
         if(event.target.checked){
-            console.log("check!");
+            console.log("camera on!");
             event.target.checked = true;
             var webcamElement = document.getElementById('webcam');
-            console.log(webcamElement);
-            webcam = new Webcam(webcamElement, 'user');
-            webcam.onloadedmetadata = function(e){
-                displaySize = { width:this.scrollWidth, height: this.scrollHeight }
-            }
-            // this.setState({
-            //     webcam : new Webcam(webcamElement, 'user')
-            // });
             
+            webcam = new Webcam(webcamElement, 'user');
+
+        
             console.log("webcam created.");
             webcam.start()
             .then(result =>{
                 cameraStarted();
                 webcamElement.style.transform = "";
-                // console.log("webcam started");
             })
             .catch(err => {
-                //displayError();
+                displayError();
             })    
         }
         else {
-            console.log("uncheck!");
+            console.log("camera off");
             event.target.checked = false;     
             cameraStopped();
             webcam.stop();
@@ -151,12 +213,23 @@ class DetectingSwitch extends Component{
             //loadingDetection의 class에서 d-none을 제거
             document.getElementById('loadingDetection').className = "loading"
             Promise.all([
-                faceapi.nets.ssdMobilenetv1.load(modelPath)
+                faceapi.nets.ssdMobilenetv1.load(modelPath),
+                faceapi.nets.faceLandmark68Net.load(modelPath)
             ]).then(function(){
+                console.log('loaded model successfully.')
+                document.getElementById('loadingDetection').className = "loading d-none";
                 createCanvas();
-                console.log("done!");
-                //startDetection();
+                startDetection();
             })
+        }
+        else{
+            //얼굴인식 정지
+            clearInterval(faceDetection);
+            if(typeof canvas !== "undefined"){
+                setTimeout(function() {
+                  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
+                }, 1000);
+              }
         }
     }
     render(){
@@ -167,8 +240,9 @@ class DetectingSwitch extends Component{
 }
 
 
-
-  
+/* -------------------------------------------------------*/
+/*                main export component                   */
+/*--------------------------------------------------------*/
 class Monitor extends Component{
     globals = {
         webcamElement : {},//document.getElementById('webcam'),
@@ -178,11 +252,6 @@ class Monitor extends Component{
         convas : {},
         faceDetection : {}
     }
-    
-    // getObject = (wE, w) =>{
-    //     this.setWebcamElement({ webcamElement : wE, webcam : new Webcam(webcamElement, 'user') }, () => {});
-
-    // }
     render(){
         return (
             <div className="container mt-1">
@@ -215,7 +284,6 @@ class Monitor extends Component{
                         </div>
                         <div id="video-container">
                             <video id="webcam" autoPlay muted playsInline></video>
-                            <canvas id="canvas" className="d-none" width='0' height='0'></canvas>
                         </div>  
                         <div id="errorMsg" className="col-12 alert-danger d-none">
                         Fail to start camera. Please allow permission to access camera.
@@ -229,6 +297,35 @@ class Monitor extends Component{
     }
 }
 
+/* -------------------------------------------------------*/
+/*                        자료 구조                        */
+/*--------------------------------------------------------*/
+class Queue {
+    constructor(size){
+      this.store = [];
+      this.size = size;
+    }
+    enqueue(item){
+      this.store.push(item);
+      if(this.store.length > this.size){
+        return false;
+      }
+      console.log("현재 store : "+this.store.length);
+      return true;
+    }
+    dequeue(){
+      return this.store.shift();
+    }
+    get(i){
+      return this.store[i];
+    }
+  }
+  class DetectedData{
+    constructor(flag, time){
+      this.flag = flag;
+      this.time = time;
+    }
+  }
 
 export default Monitor;
 

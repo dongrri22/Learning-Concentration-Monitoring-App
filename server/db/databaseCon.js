@@ -1,24 +1,23 @@
-var mysql = require('mysql');
+var mysql = require('mysql2/promise');
 var config = require(__dirname+'/databaseInfo.js').local;
 
 module.exports.init = function() {
-    return mysql.createConnection({
+    return mysql.createPool({
         host : config.host,
         port : config.port,
         user : config.user,
         password : config.password,
-        database : config.database
+        database : config.database,
+        multipleStatements: true
     })
 };
-module.exports.open = function (con,callback){
-    con.connect(function (err){
-        if(err){
-            console.err('mysql connection error : '+err);
-        } else{
-            console.info('mysql is connected successfully.');
-            callback();
-        }
-    })
+module.exports.open = async function (con){
+    try{
+        await con.getConnection(async conn=> conn);
+        console.info('mysql is connected successfully.');
+    } catch(e){
+        console.err('mysql connection error : '+err);
+    }
 };
 
 // var connection = mysql.createConnection({
