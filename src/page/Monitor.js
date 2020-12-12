@@ -28,33 +28,51 @@ function sendData(tag, data){
         }
     })
     .then(function(res){
-        console.log('sent yawnTime to DB successfully.')
+        console.log('sent data to DB successfully.')
     })
     .catch(function(err){
-        console.error('sending yawnTime to DB failed.')
+        console.error('sending data to DB failed.')
     });
 }
 //20회 중 연속된 10회의 감지 안에서 하품이 7회 이상일 경우 => 10개 구간의 평균이 0.7 이상일 경우, true를 리턴.
 function isRealYawned(queue){
     var dend = 0;
     var dsor = 10;
-    for(var i=0; i<queue.store.length-15; i++){
+    for(var i=0; i<queue.store.length-10; i++){
       dend=0;
-      for(var j=15+i-1; j>=i; j--){
+      for(var j=10+i-1; j>=i; j--){
         if(queue.get(j).flag){
           dend += 1
         }
       }
-      if(dend/dsor >= 0.9){
+      if(dend/dsor >= 0.7){
         return true;
       }
     }
     return false;
 }
+
+function isRealAfk(queue){
+    var dend = 0;
+    var dsor = 50;
+    for(var i=0; i<50; i++){
+        if(queue.get(i).flag){
+            dend += 1;
+        }
+    }
+    if(dend/dsor >= 0.9){
+        return true;
+    }
+    return false;
+        
+}
 function startDetection(){
-    var yawnQueue = new Queue(20);
-    var periodStarted = false;
+    var yawnQueue = new Queue(20); //4초
+    var yawnPeriodStarted = false;
+    var afkQueue = new Queue(50);   //10초
+    var afkPeriodStarted = false;
     faceDetection = setInterval(async () => {
+        var isAfk = false;
         var webcamElement = document.getElementById('webcam');
         displaySize = {
             height : webcamElement.scrollHeight,
@@ -86,12 +104,12 @@ function startDetection(){
             ||((betweenRightEndAndNose*2<betweenLeftEndAndNose)&&(mouth_ratio > 0.4)) //오른쪽 yawned
             ||((betweenLeftEndAndNose*2>=betweenRightEndAndNose)&&(betweenRightEndAndNose*2>=betweenLeftEndAndNose)&&(mouth_ratio > 0.6));
             //주기가 시작되지 않았을 때+감지됨 => 주기 시작하고 큐에 저장.
-            if(!periodStarted && isDetected){
+            if(!yawnPeriodStarted && isDetected){
                 yawnQueue.enqueue(new DetectedData(true, new Date()));
-                periodStarted = true;
+                yawnPeriodStarted = true;
             }
             //주기가 시작됨+감지됨+큐가 꽉 차지 않음. => 큐에 저장.
-            else if(periodStarted && yawnQueue.store.length < yawnQueue.size){
+            else if(yawnPeriodStarted && yawnQueue.store.length < yawnQueue.size){
                 yawnQueue.enqueue(new DetectedData(isDetected, new Date()));
             }
             //큐가 꽉 참.
@@ -104,10 +122,32 @@ function startDetection(){
                     
                 }
                 yawnQueue = new Queue(20);
-                periodStarted = false;
+                yawnPeriodStarted = false;
             }
         } catch(e){
-
+            isAfk = true;
+            
+        }
+        //주기가 시작되지 않았을 때+자리비움 => 주기 시작하고 큐에 저장.
+        if(!afkPeriodStarted && isAfk){
+            afkQueue.enqueue(new DetectedData(true, new Date()));
+            afkPeriodStarted = true;
+        }
+        //주기가 시작됨+감지됨+큐가 꽉 차지 않음. => 큐에 저장.
+        else if(afkPeriodStarted && afkQueue.store.length < afkQueue.size){
+            afkQueue.enqueue(new DetectedData(isAfk, new Date()));
+        }
+        //큐가 꽉 참.
+        else if(afkQueue.store.length >= afkQueue.size){
+            if(isRealAfk(afkQueue)){
+                //최초 시각 전송.
+                var afkTime = afkQueue.dequeue().time;
+                let tag = 'afkTime';
+                sendData(tag, afkTime+"");
+                console.log("afked!");
+            }
+            afkQueue = new Queue(50);
+            afkPeriodStarted = false;
         }
     }, 200);
 }
@@ -310,7 +350,7 @@ class Queue {
       if(this.store.length > this.size){
         return false;
       }
-      console.log("현재 store : "+this.store.length);
+      console.log("현재 store : "+this.store.length+"/"+this.size);
       return true;
     }
     dequeue(){
@@ -319,13 +359,13 @@ class Queue {
     get(i){
       return this.store[i];
     }
-  }
+}
   class DetectedData{
     constructor(flag, time){
       this.flag = flag;
       this.time = time;
     }
-  }
+}
 
 export default Monitor;
 

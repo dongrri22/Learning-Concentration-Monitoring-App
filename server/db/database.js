@@ -6,7 +6,7 @@ const databaseCon = require(__dirname+'/databaseCon.js');
 module.exports.writeYawnTime = async function(connection, dateString){
     const mysqlDate = toMysqlFormat(dateString);
     //yawnTime table 체크.
-    await checkYawnTimeTable(connection);
+    await checkYawnTable(connection);
 
     // DB에 기록 시작.
     try{
@@ -24,6 +24,24 @@ module.exports.writeYawnTime = async function(connection, dateString){
 
 
     //connection.query('INSERT INTO yawn VALUES '+date.prototype.toMysqlFormat);
+}
+module.exports.writeAfkTime = async function(connection, dateString){
+    const mysqlDate = toMysqlFormat(dateString);
+    await checkAfkTable(connection);
+
+    // DB에 기록 시작.
+    try{
+        await connection.query('START TRANSACTION');
+        await connection.query(`
+            INSERT INTO afk VALUES("${uuidgen()}", ${0}, "${mysqlDate}");
+        `)
+        await connection.query('COMMIT');
+        console.log("insert afk time successfully.");
+        
+    }catch(e){
+        console.log('Database error(writeAfkTime). - '+e);
+        await connection.query('ROLLBACK');
+    }
 }
 
 /*--------------------------------------------------------------*/
@@ -75,13 +93,13 @@ async function checkUserTable(connection){
         }
     }
 }
-async function checkYawnTimeTable(connection){
+async function checkYawnTable(connection){
     const sql_checkYawnTable = `SELECT * FROM yawn`;
     try{
         await connection.query(sql_checkYawnTable);
 
     } catch(e){
-        //yawnTime table이 DB에 없을 때
+        //yawn table이 DB에 없을 때
         //-> 1. CREATE table.
         //-> 2. INSERT record.
         //-> 3. COMMIT.
@@ -97,6 +115,35 @@ async function checkYawnTimeTable(connection){
             );
             await connection.query('COMMIT');
             process.stdout.write("create yawn table successfully.\n");
+
+        }
+        else{
+            console.error("Database error. - "+e);
+        }
+    }
+}
+async function checkAfkTable(connection){
+    const sql_checkYawnTable = `SELECT * FROM afk`;
+    try{
+        await connection.query(sql_checkYawnTable);
+
+    } catch(e){
+        //afk table이 DB에 없을 때
+        //-> 1. CREATE table.
+        //-> 2. INSERT record.
+        //-> 3. COMMIT.
+        if(e.code === 'ER_NO_SUCH_TABLE'){
+            await connection.query('START TRANSACTION');
+            process.stdout.write("afk table isn't exist... ");
+            await connection.query(
+                `CREATE TABLE afk (
+                    uuid varchar(36) NOT NULL PRIMARY KEY,
+                    userId integer(4) NOT NULL,
+                    time datetime NOT NULL
+                );`
+            );
+            await connection.query('COMMIT');
+            process.stdout.write("create afk table successfully.\n");
 
         }
         else{

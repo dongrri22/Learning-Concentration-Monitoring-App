@@ -36,10 +36,11 @@ app.post('/', async (req, res)=>{
     var connection = await database.connect();
     await database.writeYawnTime(connection, data);
     await database.disconnect(connection);
-
-   
-    
-   
+  }
+  else if(tag=='afkTime'){
+    var connection = await database.connect();
+    await database.writeAfkTime(connection, data);
+    await database.disconnect(connection);
   }
   res.send('POST');
 })
