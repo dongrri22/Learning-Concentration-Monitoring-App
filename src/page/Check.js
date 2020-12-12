@@ -247,6 +247,13 @@ class Check extends Component{
         const afkPer30min = getAfkPer30min();
         return (
             <div className="row" style={style_tableContainer}>
+
+                <div className="col-6" style={style_yawnChart}>
+                    <YawnHigh style={style_yawnChart} data={yawnPer30min}></YawnHigh>
+                </div>
+                <div className="col-6" style={style_yawnChart}>
+                    <AfkHigh style={style_afkChart} data={afkPer30min}></AfkHigh>
+                </div>
                 <div className="col-6" style={style_yawnTableContainer}>
                     <h2>Yawn Table</h2>
                     <BootstrapTable 
@@ -267,12 +274,7 @@ class Check extends Component{
                         </TableHeaderColumn>
                     </BootstrapTable> 
                 </div>
-                <div className="col-6" style={style_yawnChart}>
-                    <YawnHigh style={style_yawnChart} data={yawnPer30min}></YawnHigh>
-                </div>
-                <div className="col-6" style={style_yawnChart}>
-                    <AfkHigh style={style_afkChart} data={afkPer30min}></AfkHigh>
-                </div>
+                
 
                 
             </div>
@@ -335,10 +337,11 @@ const style_tableContainer={
     paddingRight: 40
 };
 const style_yawnTableContainer={
+    paddingLeft:60,
     paddingRight:20,
     paddingBottom:50
 };
 const style_afkTableContainer={
-    paddingLeft:20,
+    paddingLeft:60,
     paddingBottom:50
 };
