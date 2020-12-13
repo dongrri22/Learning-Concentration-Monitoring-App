@@ -1,0 +1,18 @@
+
+.content{
+    position: flex;
+    margin-left: 1rem;
+    margin-right: 1rem;
+    padding-top: 20px;
+    justify-content: center;
+}
+
+.content .title{
+    font-style: normal;
+    font-weight: bold;
+    font-size: 36px;
+    line-height: 44px;
+    margin-left: 0.5rem;
+    padding-bottom: 0.5rem;
+    flex: 1;
+}
