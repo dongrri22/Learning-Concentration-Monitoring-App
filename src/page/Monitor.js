@@ -17,6 +17,68 @@ var displaySize = {
 var faceDetection;
 var canvas;
 
+function checkYawnInterval(){
+    Axios({
+        method : 'post',
+        url : '/',
+        data : {
+            tag : "YI",
+            userId : 0
+        }
+    })
+    .then(function(res){
+        if(res.data.tag == "YI_RESPONSE"){
+            console.log(res.data.yi);
+            if(res.data.yi <= 120){
+                //화면에 경고창 띄우기
+                alert("you yawned too frequently!")
+            }
+        }
+    })
+    .catch(function(err){
+
+    });
+}
+function checkAfkInterval(){
+    Axios({
+        method : 'post',
+        url : '/',
+        data : {
+            tag : "AI",
+            userId : 0
+        }
+    })
+    .then(function(res){
+        if(res.data.tag == "AI_RESPONSE"){
+            //가장 가까운 afkTime 하나를 받아옴.
+            console.log("..."+res.data.recentAfkTime);
+            //최근 5분 내에 자리를 비운 적이 있을 경우 경고.
+            var splitedDateString = res.data.recentAfkTime.split(/[ :]+/);
+            var months = {Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,
+                Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+
+            const date = new Date(splitedDateString[3]+"-"+
+                                    months[splitedDateString[1]]+"-"+
+                                    splitedDateString[2]+" "+
+                                    splitedDateString[4]+":"+
+                                    splitedDateString[5]+":"+
+                                    splitedDateString[6]+":"+
+                                    "UTC+0900"
+                                )
+                                
+            var today = new Date();
+            console.log(today-date);
+            if((today-date)/1000/60 <= 5){
+                //화면에 경고창 띄우기
+                
+                alert("you afked too frequently!")
+            }
+        }
+    })
+    .catch(function(err){
+
+    });
+}
 function sendData(tag, data){
     Axios({
         method : 'post',
@@ -119,7 +181,12 @@ function startDetection(){
                     var yawnTime = yawnQueue.dequeue().time;
                     let tag = 'yawnTime';
                     sendData(tag, yawnTime+"");
-                    
+                    checkYawnInterval();
+                    ///////////////////////////////////////
+                    // db 읽어와서 경고 전송할지 판단       //
+                    // -> 최근 4회의 yawn 데이터를 읽어와 하품 간격으로 계산한 후 120초 이하일 경우 Rest Advising module 호출
+                    // -> Rest Advising module은 화면에 휴식 권고 메시지 팝업
+                    ////////////////////////////////////////
                 }
                 yawnQueue = new Queue(20);
                 yawnPeriodStarted = false;
@@ -145,6 +212,8 @@ function startDetection(){
                 let tag = 'afkTime';
                 sendData(tag, afkTime+"");
                 console.log("afked!");
+                
+                checkAfkInterval();
             }
             afkQueue = new Queue(50);
             afkPeriodStarted = false;
@@ -366,7 +435,26 @@ class Queue {
       this.time = time;
     }
 }
+function toMysqlFormat(dateString){
+    var splitedDateString = dateString.split(/[ :]+/);
+    var months = {Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,
+        Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
 
+    const date = new Date(splitedDateString[3]+"-"+
+                            months[splitedDateString[1]]+"-"+
+                            splitedDateString[2]+" "+
+                            splitedDateString[4]+":"+
+                            splitedDateString[5]+":"+
+                            splitedDateString[6]+":"+
+                            "UTC+0000"
+                        );
+    return date.getUTCFullYear() + '-' +
+                ('00' + (date.getUTCMonth()+1)).slice(-2) + '-' +
+                ('00' + date.getUTCDate()).slice(-2) + ' ' + 
+                ('00' + date.getUTCHours()).slice(-2) + ':' + 
+                ('00' + date.getUTCMinutes()).slice(-2) + ':' + 
+                ('00' + date.getUTCSeconds()).slice(-2);
+}
 export default Monitor;
 
   

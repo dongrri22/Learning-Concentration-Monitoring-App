@@ -1,7 +1,29 @@
 const databaseCon = require(__dirname+'/databaseCon.js');
 
 
-
+module.exports.readYawnTime = async function(connection, limit){
+    await checkYawnTable(connection);
+    var sql;
+    if(limit==0){
+        //0이면 모든 하품을 읽어옴.
+        sql = `SELECT time FROM yawn ORDER BY time DESC`
+        
+    }
+    else{
+        //최근 4회의 하품을 읽어옴.
+        sql = `SELECT time FROM yawn ORDER BY time DESC LIMIT ${limit}`;
+        
+    }
+    try{
+        var [results] = await connection.query(sql);
+        console.log("select yawn time successfully.");
+        console.log(results);
+        return results;
+    } catch(e){
+        console.log('Database error(readYawnTime). - '+e);
+    }
+    
+}
 
 module.exports.writeYawnTime = async function(connection, dateString){
     const mysqlDate = toMysqlFormat(dateString);
@@ -24,6 +46,30 @@ module.exports.writeYawnTime = async function(connection, dateString){
 
 
     //connection.query('INSERT INTO yawn VALUES '+date.prototype.toMysqlFormat);
+}
+
+module.exports.readAfkTime = async function(connection, limit){
+    await checkAfkTable(connection);
+    var sql;
+    if(limit==0){
+        //0이면 모든 자리비움을 읽어옴.
+        sql = `SELECT time FROM afk ORDER BY time DESC`
+        
+    }
+    else{
+        //최근 n회의 자리비움을 읽어옴.
+        sql = `SELECT time FROM afk ORDER BY time DESC LIMIT ${limit}`;
+        
+    }
+    try{
+        var [results] = await connection.query(sql);
+        console.log("select afk time successfully.");
+        console.log(results);
+        return results;
+    } catch(e){
+        console.log('Database error(readAfkTime). - '+e);
+    }
+    
 }
 module.exports.writeAfkTime = async function(connection, dateString){
     const mysqlDate = toMysqlFormat(dateString);
